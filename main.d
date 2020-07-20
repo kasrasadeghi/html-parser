@@ -11,6 +11,8 @@ struct Options {
   bool addCloseTag = false;
   bool ignoreEmpty = true;
   bool elementNormalize = true;
+  bool keepComments = false;
+  bool keepScriptContents = false;
 }
 
 class Node {
@@ -45,6 +47,8 @@ string elementNormalize(string value) {
   value = value[tag.length .. $].stripLeft;
 
   while (value != ">") {
+
+    // handle attributes without values, only keys (like defer in <script defer src="...">)
     if ((value.countUntil(" ") != -1)
         && (value.countUntil(" ") < value.countUntil("="))) {
 
@@ -98,9 +102,6 @@ void main(string[] args) {
   Node curr = root;
 
   void handle(string line) {
-
-    // TODO also drop comments
-    if (line.startsWith("<!")) return;
     if (options.ignoreEmpty && line.strip == "") return;
 
     Node child = new Node(line.strip, curr);
@@ -114,13 +115,22 @@ void main(string[] args) {
       //   add its children to the ancestor that closes it
       if ("/" ~ tag(curr.value) != tag(child.value)) {
 
-        while (tag(child.value) != "/" ~ tag(curr.value)) {
-          curr.parent.children ~= curr.children;
-          curr.parent.children.each!((ref Node node) {
-              node.parent = curr.parent;
+        while ("/" ~ tag(curr.value) != tag(child.value)) {
+          auto parent = curr.parent;
+          if (parent is null) {
+            writeNode(curr, 0);
+            writeln;
+            "current node has no parent:".writeln;
+            writeNode(child, 0);
+            "ERROR: found a closing tag with no open".writeln;
+            exit(0);
+          }
+          parent.children ~= curr.children;
+          parent.children.each!((Node node) {
+              node.parent = parent;
             });
           curr.children = [];
-          curr = curr.parent;
+          curr = parent;
         }
       }
       if (options.addCloseTag) { curr.children ~= child; }
@@ -136,10 +146,40 @@ void main(string[] args) {
   }
 
   while (S.length != 0) {
+
     auto inner_open = S.findSplitBefore("<");
     auto inner = inner_open[0];
     handle(inner);
     auto open  = inner_open[1];
+
+    // handle arbitrary contents of script tags by searching for </script
+    if (open.startsWith("<script")) {
+      auto script_rest = open.findSplitAfter(">");
+      auto script_tag = script_rest[0];
+      handle(script_tag);
+
+      S = script_rest[1];
+
+      auto endscript_open = S.findSplitBefore("</script");
+      auto script_contents = endscript_open[0];
+      if (options.keepScriptContents) {
+        handle(script_contents);
+      }
+
+      open = endscript_open[1];
+
+    } else if (open.startsWith("<!--")) {
+      auto comment_rest = open.findSplitAfter("-->");
+      auto comment = comment_rest[0];
+      if (options.keepComments) {
+        handle(comment);
+      }
+
+      S = comment_rest[1];
+      continue;
+    }
+
+    // TODO handle attribute values with ">" in them
 
     auto element_rest = open.findSplitAfter(">");
     auto element = element_rest[0];
@@ -149,6 +189,8 @@ void main(string[] args) {
   }
 
   void normalize(Node node) {
+    if (node.value.startsWith("<!--")) return;
+
     if (node.value.startsWith("<")) {
       node.value = elementNormalize(node.value);
     }
@@ -158,14 +200,16 @@ void main(string[] args) {
     }
   }
 
-  normalize(root);
+  if (options.elementNormalize) {
+    normalize(root);
+  }
 
   writeNode(root, 0);
 }
 
 void test() {
-  auto test = "<script defer src=\"chrome-search://local-ntp/voice.js\"
-                       integrity=\"sha256-C9ctze2LhHtwL+fcPVPkmVRYjQgXTGs4xfBAzlQwGWk=\">";
+  auto test = "<script defer src=\"blah-blah\"
+                       integrity=\"huh-whats-that\">";
 
   test.writeln;
   elementNormalize(test).writeln;
