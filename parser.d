@@ -1,6 +1,6 @@
 module parser;
 
-import node;
+public import node;
 
 import std.stdio;       // writeln
 import std.file;        // readText, exists
