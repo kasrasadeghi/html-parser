@@ -1,8 +1,11 @@
 import std.stdio;       // writeln
-import std.file;        // readText
+import std.file;        // readText, exists
+import std.path;        // absolutePath
 import std.algorithm;   // find
 import std.range;       // each
 import std.string;      // strip
+
+import core.stdc.stdlib; // exit
 
 struct Options {
   bool addCloseTag = false;
@@ -22,7 +25,6 @@ class Node {
 }
 
 void writeNode(ref Node node, int level) {
-  // (level + 1).iota.write; node.value.writeln;
   indent(node.value, level * 2).writeln;
   node.children.each!(a => a.writeNode(level + 1));
 }
@@ -38,7 +40,7 @@ string parseSpecial(string value) {
 
 string elementNormalize(string value) {
   string[] acc;
-  auto tag = parseSpecial(value);
+  auto tag = value.parseSpecial;
   acc ~= tag;
   value = value[tag.length .. $].stripLeft;
 
@@ -69,7 +71,7 @@ string elementNormalize(string value) {
 string tag(string line) {
   auto rest = line.findSplitAfter("<")[1];
 
-  return parseSpecial(rest);
+  return rest.parseSpecial;
 }
 
 string indent(string block, int level) {
@@ -80,6 +82,12 @@ string indent(string block, int level) {
 void main(string[] args) {
   if (args.length != 2) {
     "usage: ./html-parser example.html".writeln;
+    return;
+  }
+
+  if (! args[1].exists) {
+    "file '%s' does not exist".writefln(args[1].absolutePath);
+    return;
   }
 
   Options options;
