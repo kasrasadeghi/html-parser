@@ -1,8 +1,8 @@
 build:
-	rdmd --build-only main.d && mv main html-parser
+	rdmd --build-only -of=main *.d && mv main html-parser
 
-test:
-	rdmd main.d tests/new-tab.html
+test: build
+	./html-parser tests/new-tab.html
 
 debug:
-	ldc -g main.d && mv main html-parser-debug
+	ldc -g *.d -of main && mv main html-parser-debug
