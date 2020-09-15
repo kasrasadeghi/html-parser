@@ -18,15 +18,6 @@ struct Options {
   bool keepScriptContents = false;
 }
 
-string parseSpecial(string value) {
-  if (value.countUntil(" ") != -1
-      && value.countUntil(" ") < value.countUntil(">")) {
-    return value.findSplitBefore(" ")[0];
-  } else {
-    return value.findSplitBefore(">")[0];
-  }
-}
-
 string elementNormalize(string value) {
   string[] acc;
   auto tag = value.parseSpecial;
@@ -57,12 +48,6 @@ string elementNormalize(string value) {
   }
 
   return acc.join(" ") ~ ">";
-}
-
-string tag(string line) {
-  auto rest = line.findSplitAfter("<")[1];
-
-  return rest.parseSpecial;
 }
 
 Node parse(Options options, string filename) {
@@ -161,15 +146,13 @@ Node parse(Options options, string filename) {
   }
 
   void normalize(Node node) {
-    if (node.value.startsWith("<!--")) return;
+    mutateNode(node, (Node n) {
+        if (n.value.startsWith("<!--")) return;
 
-    if (node.value.startsWith("<")) {
-      node.value = elementNormalize(node.value);
-    }
-
-    foreach (child; node.children) {
-      normalize(child);
-    }
+        if (n.value.startsWith("<")) {
+          n.value = elementNormalize(n.value);
+        }
+      });
   }
 
   if (options.elementNormalize) {
